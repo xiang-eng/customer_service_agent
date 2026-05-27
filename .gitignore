@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+*.db
+logs/
+.vscode/
+.idea/
+chroma_policy_db/
