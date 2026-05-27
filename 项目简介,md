@@ -1,0 +1,242 @@
+一、项目介绍（面试 1 分钟版本）
+技术栈：技术栈：Python、Streamlit、Multi-Agent、图像识别、多模态输入融合、Session State、scikit-learn
+我做的是一个 Multi-Agent + Agentic RAG 电商智能客服系统。
+基于 Python、Streamlit 构建多模态客服 Demo，支持文本提问、商品图片上传、图片识别与文本联合输入。
+使用 Streamlit Session State 管理图片上下文，通过 image_hint 保存识别结果，通过 last_uploaded_name 避免同一图片重复识别，并支持用户手动清空图片上下文。
+一开始是规则客服，只能做价格、库存、订单这些简单查询。
+
+后来升级成 Agent 工作流，引入意图识别、任务规划和工具调用
+。
+再进一步把系统拆成多个 Agent，包括 SafetyAgent、IntentAgent、PlannerAgent、RetrievalRouter 和 ReflectionAgent，由 CoordinatorAgent 统一调度。
+
+同时把售后模块升级成 Agentic RAG，不是普通检索，而是增加 Query Rewrite、Hybrid Retrieval、Reflection 和 Re-plan，让系统具备复杂问题处理能力。
+
+例如“订单里的商品能不能退货”，系统会先查订单，再查售后政策，再通过 Reflection 检查证据是否充分，最后生成答案。
+
+构建多标签离线评估脚本，对 IntentAgent 和 PlannerAgent 进行 Precision / Recall / F1 评估，
+在核心业务测试集上 Micro-F1 和 Macro-F1 达到 0.96和0.98。
+
+面试时候这样解释我做了一个小规模人工标注测试集，用来验证确。每条样本都有标准意图标签和标准任务标签，然后系统预测后和标准答案对比。评估时我同时看完全匹配率、每类 Precision / Recall / F1，以及整体 Micro-F1 和 Macro-F1。
+
+如果面试官问“为什么这么高？”意图识别和任务规划是否正
+
+回答：
+
+因为当前评估集是核心业务测试集，主要覆盖价格、库存、订单、售后、问候、未知问题和部分复合问题，规则系统对这些明确场景表现稳定，所以结果较高。但我不会把它理解为线上泛化能力 98%，
+目前核心测试集上结果是 98%，但这个数据集规模比较小，主要用于验证核心链路正确性。后续如果上线，需要扩展到更多真实用户问题，并加入 bad case 和长尾问题。
+项目介绍（2分钟完整版）
+这个项目核心是做一个 Multi-Agent + Agentic RAG 客服 Agent。
+
+系统有五类 Agent：
+
+SafetyAgent 做安全护栏；
+
+IntentAgent 做意图识别；
+
+PlannerAgent 把复杂问题拆成任务；
+
+RetrievalRouter 根据任务调用数据库工具和 RAG 工具；
+
+ReflectionAgent 做证据校验，不够就补任务重规划。
+
+复杂问题会走：
+
+Plan-Retrieve-Reflect-Replan 闭环。
+
+比如订单商品是否退货，会自动拆成订单查询和售后政策查询两个任务，再联合推理。
+
+售后模块用了 Hybrid RAG，结合 BM25 和向量检索，并做 Query Rewrite 提高短 query 召回。
+
+另外加入 Memory 支持“那物流呢”这种追问，还有缓存和 fallback 保证稳定性。
+
+三、简历 STAR 法则写法（大厂喜欢）
+S（场景）
+传统客服机器人只能做规则匹配和简单问答，复杂多跳问题处理能力弱。
+T（任务）
+设计一个具备任务规划、工具调用和检索增强能力的智能客服 Agent 系统。
+A（行动）
+设计 Multi-Agent 协作架构；
+
+实现 Agentic RAG 检索链路；
+
+实现 Reflection 自反思补查；
+
+实现多工具动态路由；
+
+实现 Memory 多轮追问能力。
+
+R（结果）
+系统支持商品、订单、售后复杂问题处理，
+重复问题响应从秒级优化到毫秒级，
+完成从规则客服到 Agentic RAG 的完整升级。
+
+
+四、简历最终版（直接可放）
+项目：Multi-Agent + Agentic RAG 电商智能客服系统
+
+• 设计并实现 Multi-Agent 协作架构，构建 Safety / Intent / Planner / Retrieval / Reflection 五类 Agent 协同工作流
+
+• 实现 Agentic RAG 闭环（Plan-Retrieve-Reflect-Replan），支持复杂售后问答与多跳任务规划
+
+• 构建订单库、商品库与售后政策 RAG 多工具动态路由能力，实现联合推理问答
+
+• 引入 Query Rewrite、Hybrid Retrieval 和 Reflection 补查机制，提高检索召回质量与答案鲁棒性
+
+• 实现上下文 Memory、多层缓存与 Fallback 回退机制，提升多轮交互体验和系统稳定性
+
+构建多标签离线评估脚本，对 IntentAgent 和 PlannerAgent 进行 Precision / Recall / F1 评估，
+在核心业务测试集上 Micro-F1 和 Macro-F1 达到 0.96和0.98。
+
+五、如果面试官开始拷打（高频）
+Q1 为什么叫 Agent，不是普通聊天机器人？、
+
+答：
+
+因为它具备任务规划、工具调用、状态记忆和自反思能力。
+
+不是单纯生成回复，而是会规划任务、调用工具、检查证据、必要时重规划，所以更符合 Agent 定义。
+Q2 为什么拆成多个 Agent？
+单Agent所有逻辑堆一个 prompt 里很难维护。
+
+拆成多个 Agent 后职责清晰，系统更可解释、更容易扩展。
+Q3 Reflection 有什么价值？
+单次检索可能证据不足。
+
+ReflectionAgent 能检查当前答案证据是否充分，不够会补任务重新检索，提高鲁棒性。
+Q4 Agentic RAG 和普通 RAG 区别？
+普通 RAG 是检索一次生成答案。
+
+Agentic RAG 多了规划、工具调用、反思和重规划能力，更适合复杂问题。
+Q5 为什么要 Hybrid Retrieval？
+纯向量检索对短 query 不稳定，比如“可以换吗”。
+
+BM25 对关键词召回好，所以两者结合效果更稳。
+
+Q6 为什么还要缓存？
+减少重复 LLM 调用，降低成本，同时把重复问题响应从秒级降到毫秒级。
+Q7 最大难点？
+难点是多 Agent 状态协同和 Reflection 闭环设计。
+
+尤其多轮追问上下文继承和补任务逻辑。
+
+六、如果面试官问改进过程（这个很加分）
+
+你这样说：
+
+这个项目不是一次做成的，是逐步演进：
+
+第一阶段规则客服；
+
+第二阶段 Agent 工作流；
+
+第三阶段数据库工具化；
+
+第四阶段 RAG；
+
+第五阶段 Agentic RAG；
+
+第六阶段 Multi-Agent + Reflection。
+
+整个过程其实是在逐步把系统从问答机器人升级成 Agent。
+
+这是很像工程故事。
+
+
+七、架构图讲解（背这个）
+
+看到图就这么讲：
+
+最上层 CoordinatorAgent 负责调度。
+
+左边 Safety 和 Intent 负责理解问题。
+
+中间 Planner 做任务拆解。
+
+RetrievalRouter 调不同工具。
+
+Reflection 检查结果，如果证据不足，会回到 Planner 做补任务。
+
+最终形成闭环。
+
+
+八、如果被问项目不足（很爱问）
+
+答：
+
+目前 Reflection 还是轻量规则驱动，没有做 LLM Critic。
+
+RAG 的 rerank 也还是轻量版，没有接 Cross Encoder。
+
+后续会往 Critic Agent 和图式 Planner 升级。
+
+九、一句话卖点（背住）
+这是一个从规则客服逐步升级到 Multi-Agent + Agentic RAG 架构的智能客服 Agent 系统。
+
+
+1. 面试官：你的项目为什么叫多模态？
+
+你可以回答：
+
+因为系统不仅支持用户输入文本问题，还支持上传商品图片。图片上传后，系统会调用 recognize_product_from_image 识别商品信息，然后把识别结果和用户输入的问题融合成一个完整问题，再交给后面的 Multi-Agent 客服系统处理。
+
+例如用户上传“小米智能音箱”的图片，然后输入：
+
+这个多少钱？
+
+系统会融合成：
+
+小米智能音箱 这个多少钱？
+
+这样 Agent 就知道“这个”指的是哪个商品。
+
+
+2. 面试官：图片识别结果和文本是怎么融合的？
+
+你可以回答：
+
+我采用的是轻量级的前置融合方式。图片识别模块先返回商品名称或商品提示信息，我把这个结果存入 Session State，然后在用户点
+发送时，把 image_hint 和用户文本 question 拼接成 final_question，再统一送入 CoordinatorAgent。
+如果存在图片识别结果，就使用 image_hint + question；如果没有图片，就直接使用用户原始问题。
+
+3. 面试官：为什么要用 Session State？
+
+你可以回答：Streamlit 每次交互都会重新执行脚本，如果不使用 Session State，图片识别结果可能会丢失。所以我用 st.session_state.image_hint 保存识别结果，用 last_uploaded_name 记录上一次上传的文件名，避免同一张图片被重复识别。
+
+
+4. 面试官：为什么要判断 last_uploaded_name？
+因为用户输入文本或者点击按钮时，Streamlit 页面可能会重新运行。如果每次重新运行都调用图片识别，会造成重复计算，降低效率。所以我用 last_uploaded_name 判断是否是新图片，只有上传新图片时才重新识别。
+
+
+5. 面试官：CoordinatorAgent 在这里起什么作用？
+CoordinatorAgent 是整个客服系统的调度中心。前端把最终问题 final_question 传给 CoordinatorAgent 后，它会根据用户意图调用不同模块，比如商品价格查询、库存查询、订单查询、售后政策问答，同时结合 memory 保存的上下文进行回复。
+
+
+6. 面试官：图片识别失败怎么办？
+目前系统会把识别结果作为辅助上下文，如果图片识别为空，就直接使用用户输入的文本问题。后续可以优化为：识别失败时提示用户补充商品名称，或者返回“暂未识别出商品，请重新上传更清晰的图片”。
+
+7. 面试官：你这个多模态方案有什么优点？
+优点是实现简单、可解释性强，而且能很好地解决客服场景中的指代问题。比如用户只问“这个多少钱”“这个还有货吗”，如果没有图片上下文，系统不知道“这个”是什么；加入图片识别结果后，Agent 可以把问题理解成具体商品查询。
+
+8. 面试官：有什么不足？
+目前的多模态融合方式是基于文本拼接，属于轻量级融合，优点是简单稳定，但对图片识别结果的质量依赖比较强。如果识别错了，后续 Agent 也可能答错。后续可以加入商品库相似度匹配、置信度判断、用户确认机制，或者使用更强的视觉语言模型提升识别效果。
+
+9. 面试官：你怎么评估这个系统？
+我目前对文本意图识别和任务规划部分做了自动化评估，构建了 9 条人工标注测试样例，覆盖价格、库存、订单、售后政策、普通问候和未知问题等场景。评估指标包括完全匹配率、Precision、Recall、F1、Micro-F1 和 Macro-F1，当前测试集中意图识别和任务规划的完全匹配率都是 100.00%，Micro-F1 和 Macro-F1 都是 1.00。
+图片识别模块后续可以单独构建图片测试集，统计 Top-1 Accuracy 或识别成功率。
+
+
+用户上传图片
+        ↓
+Streamlit 显示图片
+        ↓
+调用 recognize_product_from_image() 识别商品
+        ↓
+把识别结果保存到 st.session_state.image_hint
+        ↓
+用户输入文本问题
+        ↓
+把 图片识别结果 + 文本问题 拼接成 final_question
+        ↓
+把 final_question 交给 CoordinatorAgent
+        ↓
+Agent 返回客服回复

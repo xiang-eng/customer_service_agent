@@ -1,0 +1,28 @@
+question,expected_intents
+小米智能音箱多少钱？,price_query
+华为门铃还有货吗？,stock_query
+米家摄像头库存多少？,stock_query
+这个商品可以退货吗？,policy_query
+商品坏了可以换货吗？,policy_query
+支持保修吗？,policy_query
+订单 O1001 到哪了？,order_query
+帮我查一下 O1003 的物流,order_query
+你好,general_query
+您好，在吗,general_query
+今天天气怎么样？,unknown_query
+你是谁？,unknown_query
+小米智能音箱多少钱？还有库存吗？,price_query|stock_query
+华为门铃还有货吗？可以退货吗？,stock_query|policy_query
+小米智能音箱多少钱？订单 O1001 到哪了？可以退货吗？,price_query|order_query|policy_query
+这个音箱多少钱,price_query
+这个还有库存吗,stock_query
+能退吗,policy_query
+坏了咋办,policy_query
+订单在哪,order_query
+物流到哪了,order_query
+帮我看看这个东西价格,price_query
+这个贵吗,price_query
+有没有货,stock_query
+可以换吗,policy_query
+
+

@@ -1,0 +1,56 @@
+dataloader.py：读取商品、订单、政策文件
+intent.py：判断用户意图
+safety.py：安全护栏
+tools.py：查商品、查订单、查售后政策
+agent.py：组织整个回答流程
+main_v05.py：启动程序，接收用户输入
+
+
+完整流程是这样的
+main_v05.py 接收用户输入
+  ↓
+调用 agent.py 里的 answer_question()
+  ↓
+agent.py 调用 safety.py 的 safety_guard()
+  ↓
+安全检查通过
+  ↓
+agent.py 调用 intent.py 的 classify_intents()
+  ↓
+识别出：
+price_query
+order_query
+policy_query
+  ↓
+agent.py 调用 tools.py：
+find_product() 查商品价格
+find_order() 查订单物流
+search_policy() 查退货政策
+  ↓
+agent.py 把三段回答合并
+  ↓
+main_v05.py 打印给用户
+
+最后：
+规则意图识别 → 大模型意图识别
+CSV 查询 → Neo4j 查询
+policy.txt 关键词检索 → RAG / GraphRAG
+手写流程 → LangGraph
+简单安全规则 → 大模型安全护栏
+
+
+classify_intents()
+safety_guard()
+find_product()
+find_order()
+search_policy()
+answer_question()
+
+对应pdf的高级版
+
+意图识别 Agent
+安全护栏节点
+Text2Cypher / Neo4j 查询
+GraphRAG 查询
+Planner 子任务拆解
+Map-Reduce 汇总回答
