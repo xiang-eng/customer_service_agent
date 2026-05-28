@@ -1,5 +1,7 @@
 ﻿# Multi-Agent + Agentic RAG 电商智能客服系统
 
+![Demo](demo.png)
+![Demo](demo.png)
 ## 1. 项目简介
 
 本项目是一个基于 Multi-Agent + Agentic RAG 架构实现的电商智能客服系统。
@@ -301,3 +303,5 @@ Plan -> Retrieve -> Reflect -> Re-plan
 ## 11. 一句话总结
 
 这是一个具备任务规划、工具调用、证据反思、自动重规划和上下文记忆能力的 Multi-Agent Agentic RAG 电商智能客服系统。
+
+
