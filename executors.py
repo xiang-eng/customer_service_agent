@@ -22,9 +22,9 @@ def format_number(value):
     格式化数字。
 
     例如：
-    - 199.0 → 199
-    - 199   → 199
-    - 199.5 → 199.5
+    - 199.0 -> 199
+    - 199   -> 199
+    - 199.5 -> 199.5
     """
 
     if isinstance(value, float):
@@ -37,12 +37,6 @@ def format_number(value):
 def find_product_from_list(question, products):
     """
     优先从传入的 products 列表中查商品。
-
-    支持字段：
-    - name
-    - product_name
-    - id
-    - brand
     """
 
     if not products:
@@ -56,6 +50,10 @@ def find_product_from_list(question, products):
             product.get("brand"),
         ]
 
+        aliases = product.get("aliases", [])
+
+        names.extend(aliases)
+
         for name in names:
             if name and str(name) in question:
                 return product
@@ -66,9 +64,6 @@ def find_product_from_list(question, products):
 def find_order_from_list(question, orders):
     """
     优先从传入的 orders 列表中查订单。
-
-    支持字段：
-    - order_id
     """
 
     if not orders:
@@ -98,10 +93,6 @@ def get_product_name(product):
 def get_order_value(order, *keys, default="未知"):
     """
     从订单字典中取值，兼容多个字段名。
-
-    例如：
-    get_order_value(order, "order_status", "status")
-    表示优先取 order_status，没有就取 status。
     """
 
     for key in keys:
@@ -114,12 +105,6 @@ def get_order_value(order, *keys, default="未知"):
 def execute_price_task(question, products, memory):
     """
     执行价格任务。
-
-    优先级：
-    1. 先从传入的 products 测试数据里查
-    2. 如果查不到，再查 db_tools
-    3. 如果还查不到，再用 memory 里的上一次商品
-    4. 都没有，就反问用户
     """
 
     product = find_product_from_list(question, products)
@@ -150,12 +135,6 @@ def execute_price_task(question, products, memory):
 def execute_stock_task(question, products, memory):
     """
     执行库存任务。
-
-    优先级：
-    1. 先从传入的 products 测试数据里查
-    2. 如果查不到，再查 db_tools
-    3. 如果还查不到，再用 memory 里的上一次商品
-    4. 都没有，就反问用户
     """
 
     product = find_product_from_list(question, products)
@@ -184,12 +163,6 @@ def execute_stock_task(question, products, memory):
 def execute_order_task(question, orders, memory, use_llm_response=True):
     """
     执行订单任务。
-
-    优先级：
-    1. 先从传入的 orders 测试数据里查
-    2. 如果查不到，再查 db_tools
-    3. 如果还查不到，再用 memory 里的上一次订单
-    4. 都没有，就提示用户提供订单号
     """
 
     order = find_order_from_list(question, orders)
@@ -282,14 +255,58 @@ def execute_order_task(question, orders, memory, use_llm_response=True):
     )
 
 
+def fallback_policy_answer(question):
+    """
+    售后 RAG 失败时的兜底回答。
+    避免 Chroma 数据库只读导致 Streamlit 页面崩溃。
+    """
+
+    if "退货" in question or "退款" in question:
+        return (
+            "根据售后政策：\n"
+            "1. 未拆封商品支持 7 天无理由退货。\n"
+            "2. 已拆封但无质量问题的商品，不支持无理由退货。\n"
+            "3. 如果商品存在质量问题，可以申请售后处理。\n"
+            "4. 退款会在退货商品入库并检测通过后 3-7 个工作日原路退回。"
+        )
+
+    if "换货" in question:
+        return (
+            "根据售后政策：\n"
+            "如果商品存在质量问题，支持 15 天内换货。"
+        )
+
+    if "保修" in question or "维修" in question:
+        return (
+            "根据售后政策：\n"
+            "保修期内非人为损坏，可以申请维修。"
+        )
+
+    return (
+        "根据售后政策：\n"
+        "未拆封商品支持 7 天无理由退货；"
+        "已拆封但无质量问题的商品，不支持无理由退货；"
+        "质量问题支持 15 天内换货；"
+        "保修期内非人为损坏可申请维修。"
+    )
+
+
 def execute_policy_task(question, policy):
     """
     执行售后任务。
 
-    当前版本使用完整版 RAG。
-    如果 RAG / LLM 失败，full_rag_policy.py 内部应该返回回退答案。
+    优先使用完整版 RAG。
+    如果 Chroma / LLM / 数据库出错，则回退到本地售后规则回答。
     """
 
-    answer = answer_policy_with_full_rag(question, top_k=3)
+    try:
+        answer = answer_policy_with_full_rag(question, top_k=3)
 
-    return answer
+        if answer is not None and answer.strip():
+            return answer
+
+        return fallback_policy_answer(question)
+
+    except Exception as e:
+        print(f"【售后RAG失败，启用兜底回答】{e}")
+        return fallback_policy_answer(question)
