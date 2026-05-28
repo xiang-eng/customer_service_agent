@@ -1,716 +1,303 @@
-# 🚀 Multi-Agent + Agentic RAG 电商智能客服系统
+﻿# Multi-Agent + Agentic RAG 电商智能客服系统
 
-<p align="center">
+## 1. 项目简介
 
-一个具备任务规划、工具调用、自反思能力的智能客服 Agent 系统
+本项目是一个基于 Multi-Agent + Agentic RAG 架构实现的电商智能客服系统。
 
-</p>
-
-<p align="center">
-
-![Python](https://img.shields.io/badge/Python-3.10+-blue)
-![Multi-Agent](https://img.shields.io/badge/Multi--Agent-orange)
-![Agentic-RAG](https://img.shields.io/badge/Agentic-RAG-green)
-![SQLite](https://img.shields.io/badge/SQLite-lightgrey)
-
-</p>
-
----
-
-# 一、项目简介
-
-这是一个模拟真实电商场景的智能客服 Agent 项目。
-
-支持：
+系统支持：
 
 - 商品价格查询
 - 商品库存查询
 - 订单物流查询
-- 售后政策问答（RAG）
+- 售后政策问答
 - 多轮上下文追问
-- 多跳任务拆解
-- Reflection 自反思补查
-- Multi-Agent 协作
+- 多跳任务规划
+- Reflection 自动反思与重规划
+- Streamlit 网页 Demo
 
-不是传统 FAQ 机器人：
+本项目不是简单 FAQ，也不是普通单轮 RAG，而是实现了一个 Agentic RAG 工作流：
 
-```text
+Plan -> Retrieve -> Reflect -> Re-plan
+
+---
+
+## 2. 项目效果
+
+用户可以通过 Streamlit 网页进行多轮对话。
+
+推荐演示问题：
+
+1. 华为 Mate 60 多少钱？
+2. 华为 Mate 60 有货吗？
+3. 小米 14 有货吗？
+4. 我的订单 O1001 到哪了？
+5. 我的订单 O1001 里的商品可以退货吗？
+6. 那退货呢？
+7. 那物流呢？
+
+系统能够根据上下文自动判断用户追问的对象。
+
+例如：
+
+用户问：我的订单 O1001 里的商品可以退货吗？
+
+系统会先查询订单，再查询售后政策，最后融合结果回答。
+
+用户继续问：那物流呢？
+
+系统会自动继承上一轮订单 O1001，继续查询物流。
+
+---
+
+## 3. 系统架构
+
+整体流程：
+
 用户问题
-→ 匹配规则
-→ 返回固定答案
-```
-
-而是升级成：
-
-```text
-理解问题
-→ 任务规划
-→ 调用工具
-→ 检索证据
-→ 自反思补查
-→ 最终回答
-```
-
----
-
-# 二、项目一步步怎么来的（演进过程）
-
-这个项目不是一次写成的，是逐步升级的：
+↓
+SafetyAgent：安全检查
+↓
+IntentAgent：意图识别
+↓
+PlannerAgent：任务规划
+↓
+RetrievalRouter：工具动态路由
+↓
+商品工具 / 订单工具 / 售后 RAG 工具
+↓
+ReflectionAgent：证据反思与结果检查
+↓
+如果证据不足，自动 Re-plan + Re-retrieve
+↓
+最终回答
 
 ---
 
-## 第一阶段：规则客服
-
-最开始只是：
-
-```text
-if 用户问价格:
-   查价格
-
-if 用户问订单:
-   查订单
-```
-
-只能处理简单问题。
-
----
-
-## 第二阶段：工作流 Agent
-
-升级成：
-
-```text
-意图识别
-→ 任务规划
-→ 执行器
-```
-
-比如：
-
-```text
-小米音箱多少钱？订单在哪？
-```
-
-能拆成两个任务处理。
-
----
-
-## 第三阶段：加入数据库
-
-把写死的数据升级成：
-
-- 商品数据库（SQLite）
-
-- 订单数据库（SQLite）
-
-更像真实系统。
-
----
-
-## 第四阶段：升级 RAG
-
-售后政策不写死：
-
-```text
-问题
-→ 检索政策
-→ 生成回答
-```
-
----
-
-## 第五阶段：升级 Agentic RAG
-
-加入：
-
-```text
-Query Rewrite
-Hybrid Retrieval
-Reflection
-Re-plan
-```
-
-形成闭环：
-
-```text
-规划
-→ 检索
-→ 反思
-→ 重规划
-```
-
----
-
-## 第六阶段：升级 Multi-Agent
-
-拆成多个 Agent：
-
-```text
-CoordinatorAgent
-├── SafetyAgent
-├── IntentAgent
-├── PlannerAgent
-├── RetrievalRouter
-└── ReflectionAgent
-```
-
-这就是最终版。
-
----
-
-# 三、系统架构
-
-## Agent 架构
-
-```text
-CoordinatorAgent
-├── SafetyAgent
-├── IntentAgent
-├── PlannerAgent
-├── RetrievalRouter
-└── ReflectionAgent
-```
-
----
-
-## 每个 Agent 干什么
-
----
+## 4. 核心 Agent 说明
 
 ### SafetyAgent
 
-负责安全检查。
-
-比如：
-
-- 非业务问题拦截
-
-- 敏感问题过滤
-
----
+负责判断用户问题是否安全，是否属于当前客服系统的业务范围。
 
 ### IntentAgent
 
-判断用户问什么：
+负责识别用户问题意图。
 
-```text
-价格
-库存
-订单
-售后
-```
+支持识别：
 
----
+- price_query：价格查询
+- stock_query：库存查询
+- order_query：订单查询
+- policy_query：售后政策查询
+- general_query：普通问候
+- unknown_query：未知问题
 
 ### PlannerAgent
 
-负责拆任务。
+负责任务规划。
 
-例如：
+例如用户问：
 
-```text
-订单里的商品可以退货吗
-```
+我的订单 O1001 里的商品可以退货吗？
 
-拆成：
+这个问题不是单一任务，而是多跳问题。
 
-```text
-查订单
+系统会自动规划为：
 
-查售后政策
-```
+["order_task", "policy_task"]
 
----
+也就是：
+
+先查订单，再查售后政策。
 
 ### RetrievalRouter
 
-决定调哪个工具：
+负责根据任务列表动态调用不同工具。
 
-```text
-价格工具
+任务映射关系：
 
-库存工具
-
-订单工具
-
-RAG工具
-```
-
----
+price_task  -> 商品价格工具
+stock_task  -> 商品库存工具
+order_task  -> 订单查询工具
+policy_task -> 售后政策 RAG 工具
 
 ### ReflectionAgent
 
-负责检查：
+负责判断当前回答是否可靠。
 
-```text
-证据够不够？
+如果出现以下情况：
 
-答案完整吗？
-```
+- 回答为空
+- 证据为空
+- 命中失败信号
+- 回答过短
 
-不够就补查。
-
----
-
-# 四、系统工作流
-
-```text
-用户问题
-↓
-
-安全检查
-
-↓
-
-意图识别
-
-↓
-
-任务规划
-
-↓
-
-工具路由
-
-↓
-
-证据反思
-
-↓
-
-必要时重新规划
-
-↓
-
-最终回答
-```
+系统会认为证据不足，并自动重新规划任务。
 
 ---
 
-## 闭环
+## 5. Agentic RAG 闭环
 
-```text
-Plan
+普通 RAG 通常是：
 
-↓
+Retrieve -> Generate
 
-Retrieve
+本项目实现的是：
 
-↓
+Plan -> Retrieve -> Reflect -> Re-plan
 
-Reflect
+区别在于：
 
-↓
-
-Re-plan
-```
-
-这是 Agentic RAG 核心。
-
----
-
-# 五、核心功能
+| 能力 | 普通 RAG | 本项目 |
+|---|---|---|
+| 单次检索 | 支持 | 支持 |
+| 多工具调用 | 不一定支持 | 支持 |
+| 多跳任务规划 | 较弱 | 支持 |
+| 证据反思 | 不支持 | 支持 |
+| 自动重规划 | 不支持 | 支持 |
+| 上下文追问 | 较弱 | 支持 |
 
 ---
 
-## 1 商品咨询
+## 6. 项目目录结构
 
-支持：
-
-- 商品价格
-
-- 商品库存
-
-示例：
-
-```text
-用户：
-小米智能音箱多少钱
-
-客服：
-199元
-```
-
----
-
-## 2 订单查询
-
-支持：
-
-- 发货状态
-
-- 物流状态
-
-示例：
-
-```text
-订单 O1001 到哪了
-```
+customer_service_agent/
+├── app_streamlit.py          # Streamlit 网页 Demo
+├── multi_agent.py            # Multi-Agent 主流程
+├── planner_agentic.py        # Agentic 任务规划器
+├── retrieval_router.py       # 工具路由器
+├── reflection_agent.py       # 反思 Agent
+├── executors.py              # 工具执行器
+├── safety.py                 # 安全检查
+├── intent.py                 # 意图识别
+├── planner.py                # 基础任务规划
+├── db_tools.py               # 数据库查询工具
+├── full_rag_policy.py        # 售后政策 RAG
+├── memory.py                 # 会话记忆
+├── test_multi_agent.py       # 命令行测试入口
+├── requirements.txt          # 依赖包
+├── ARCHITECTURE.md           # 架构说明
+├── RESUME.md                 # 简历描述
+├── INTERVIEW_QA.md           # 面试问答
+└── RUN_DEMO.md               # 运行说明
 
 ---
 
-## 3 售后问答（RAG）
+## 7. 运行方式
 
-支持：
+### 创建环境
 
-```text
-退货
+conda create -n customer python=3.11 -y
+conda activate customer
 
-换货
+### 安装依赖
 
-保修
-```
+pip install -r requirements.txt
 
-示例：
+如果缺少 torchvision，可以执行：
 
-```text
-可以换吗
-```
+pip install torchvision
 
----
+### 运行命令行 Demo
 
-## 4 多轮追问
+python test_multi_agent.py
 
-支持：
+### 运行网页 Demo
 
-```text
-那物流呢
+streamlit run app_streamlit.py
 
-那退货呢
-```
+启动后打开：
 
-系统能继承上下文。
+http://localhost:8501
 
 ---
 
-## 5 多跳问题
+## 8. Demo 演示问题
+
+推荐按下面顺序演示：
+
+1. 华为 Mate 60 多少钱？
+2. 华为 Mate 60 有货吗？
+3. 小米 14 有货吗？
+4. 我的订单 O1001 到哪了？
+5. 我的订单 O1001 里的商品可以退货吗？
+6. 那退货呢？
+7. 那物流呢？
+
+这组问题可以完整展示：
+
+- 商品查询
+- 库存查询
+- 订单查询
+- 售后 RAG
+- 多跳任务规划
+- 上下文追问
+- Memory 记忆能力
+
+---
+
+## 9. 项目亮点
+
+### 9.1 Multi-Agent 架构
+
+将客服系统拆分成多个 Agent，每个 Agent 职责清晰，方便扩展和调试。
+
+### 9.2 Agentic RAG 工作流
+
+实现：
+
+Plan -> Retrieve -> Reflect -> Re-plan
+
+而不是普通单次 RAG。
+
+### 9.3 多跳任务规划
+
+复杂问题会自动拆解为多个任务。
 
 例如：
 
-```text
-订单里的商品可以退货吗
-```
+订单商品能否退货？
 
-自动拆：
+会被拆成：
 
-```text
-order_task
+订单查询 + 售后政策查询
 
-policy_task
-```
+### 9.4 Reflection 反思机制
 
----
+系统会检查答案是否足够可靠。
 
-# 六、Agentic RAG 设计
+如果证据不足，会自动补任务并重新检索。
 
----
-
-## Query Rewrite
-
-用户说：
-
-```text
-坏了咋整
-```
-
-系统会改写成：
-
-```text
-质量问题
-换货
-保修
-人为损坏
-```
-
-方便检索。
-
----
-
-## Hybrid Retrieval
-
-不是只用向量检索。
-
-而是：
-
-```text
-向量检索
-
-+ BM25
-
-+ 关键词重排
-```
-
-为什么？
-
-因为：
-
-```text
-可以换吗
-```
-
-这种问题很短。
-
-纯向量容易召回不好。
-
-BM25 能补。
-
----
-
-## Reflection
-
-如果检索证据不足：
-
-```text
-补任务
-
-重新检索
-```
-
----
-
-## Fallback
-
-如果 LLM 超时：
-
-直接返回检索结果。
-
-系统不崩。
-
----
-
-# 七、Memory
-
-保存：
-
-```text
-last_product
-
-last_order
-
-last_intents
-```
+### 9.5 Memory 上下文追问
 
 支持：
 
-```text
-那库存呢
-```
+那退货呢？
+那物流呢？
 
-这种追问。
+这种省略主语的追问。
 
----
+### 9.6 Streamlit 网页 Demo
 
-# 八、缓存优化
-
-做了三层缓存：
+项目不仅支持命令行测试，也支持网页端交互演示。
 
 ---
 
-## Router缓存
+## 10. 后续优化方向
 
-缓存任务规划。
+未来可以继续升级：
 
----
-
-## 回答缓存
-
-重复问题直接返回。
-
----
-
-## RAG缓存
-
-第一次：
-
-10秒
-
-第二次：
-
-毫秒级
+- 接入真实大模型 API，例如 DeepSeek、Qwen、OpenAI
+- 引入向量检索 + rerank
+- 增加 Verifier Agent
+- 增加长期 Memory
+- 封装 FastAPI 后端服务
+- 部署到公网
+- 增加自动化评测集
+- 增加 Docker 部署
 
 ---
 
-# 九、技术栈
+## 11. 一句话总结
 
-## 基础
-
-- Python
-
-- SQLite
-
-- Streamlit
-
----
-
-## Agent
-
-- Multi-Agent
-
-- ReAct
-
-- LangGraph 风格工作流
-
----
-
-## RAG
-
-- BM25
-
-- Chroma
-
-- SentenceTransformer
-
----
-
-## 大模型
-
-- Qwen
-
----
-
-# 十、项目目录
-
-```text
-customer_service_agent/
-
-├── main_v06.py
-├── main_agentic.py
-
-├── multi_agent.py
-├── planner_agentic.py
-├── retrieval_router.py
-├── reflection_agent.py
-
-├── executors.py
-├── db_tools.py
-├── memory.py
-
-├── agentic_rag_policy.py
-├── full_rag_policy.py
-
-└── app.py
-```
-
----
-
-# 十一、运行方式
-
-初始化数据库：
-
-```bash
-python init_db.py
-```
-
-启动：
-
-```bash
-python main_agentic.py
-```
-
-网页 Demo：
-
-```bash
-streamlit run app.py
-```
-
----
-
-# 十二、测试问题
-
-```text
-小米智能音箱多少钱
-
-华为门铃还有货吗
-
-订单 O1001 到哪了
-
-订单 O1001 里的商品可以退货吗
-
-那物流呢
-
-可以换吗
-```
-
----
-
-# 十三、项目亮点
-
----
-
-## 亮点1
-
-从普通客服升级到 Agentic RAG。
-
----
-
-## 亮点2
-
-Multi-Agent 协作。
-
----
-
-## 亮点3
-
-多工具联合推理：
-
-```text
-商品库
-
-订单库
-
-政策RAG
-```
-
----
-
-## 亮点4
-
-Reflection 自反思。
-
----
-
-## 亮点5
-
-上下文 Memory。
-
----
-
-# 十四、简历写法
-
-项目名称：
-
-```text
-Multi-Agent + Agentic RAG 电商智能客服系统
-```
-
----
-
-项目描述：
-
-```text
-设计并实现 Multi-Agent + Agentic RAG 电商智能客服系统，构建 Safety/Intent/Planner/Retrieval/Reflection 多Agent协作框架，实现多跳任务规划、工具动态路由、证据反思重规划与上下文追问能力。
-```
-
----
-
-# 十五、一句话介绍项目
-
-```text
-这是一个从规则客服逐步升级到具备任务规划、工具调用、自反思能力的 Multi-Agent Agentic RAG 智能客服系统。
-```
-
----
-
-# 十六、未来还能升级
-
-可以继续做：
-
-- Critic Agent
-
-- Graph Planner
-
-- 长期记忆
-
-- 服务化部署
-
----
+这是一个具备任务规划、工具调用、证据反思、自动重规划和上下文记忆能力的 Multi-Agent Agentic RAG 电商智能客服系统。
