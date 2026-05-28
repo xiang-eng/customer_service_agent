@@ -38,7 +38,7 @@ from reflection_agent import (
 USE_LLM_ROUTER = False
 
 # 是否启用 LLM 订单回答生成
-USE_LLM_RESPONSE = False
+USE_LLM_RESPONSE = True
 
 
 def is_followup_question(question):

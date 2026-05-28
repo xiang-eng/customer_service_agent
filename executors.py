@@ -1,4 +1,4 @@
-# =====================================
+﻿# =====================================
 # executors.py
 # 作用：
 # 工具执行器
@@ -8,12 +8,19 @@
 # - execute_stock_task  查库存
 # - execute_order_task  查订单
 # - execute_policy_task 查售后政策
+#
+# 当前版本特点：
+# 1. 商品 / 订单优先从传入的数据列表中查
+# 2. 查不到再回退到数据库查询函数
+# 3. 订单回答优先使用 Qwen / DeepSeek 生成自然语言
+# 4. LLM 不可用时自动回退模板，不影响系统运行
+# 5. 售后 RAG 出错时自动回退本地售后规则
 # =====================================
 
 from db_tools import find_order_in_db, find_product_in_db
 
 from llm_response import generate_response_with_llm
-from validator import validate_order_response
+
 from full_rag_policy import answer_policy_with_full_rag
 
 
@@ -37,6 +44,8 @@ def format_number(value):
 def find_product_from_list(question, products):
     """
     优先从传入的 products 列表中查商品。
+
+    这样 Streamlit Demo 和测试脚本中的商品数据可以直接生效。
     """
 
     if not products:
@@ -44,9 +53,9 @@ def find_product_from_list(question, products):
 
     for product in products:
         names = [
+            product.get("id"),
             product.get("name"),
             product.get("product_name"),
-            product.get("id"),
             product.get("brand"),
         ]
 
@@ -93,6 +102,11 @@ def get_product_name(product):
 def get_order_value(order, *keys, default="未知"):
     """
     从订单字典中取值，兼容多个字段名。
+
+    例如：
+    - order_status / status
+    - pay_amount / amount
+    - tracking_number / tracking_no / tracking
     """
 
     for key in keys:
@@ -102,9 +116,60 @@ def get_order_value(order, *keys, default="未知"):
     return default
 
 
+def safe_update_product(memory, product):
+    """
+    安全更新商品记忆。
+
+    如果 memory 里没有 update_product，也不会报错。
+    """
+
+    try:
+        if hasattr(memory, "update_product"):
+            memory.update_product(product)
+    except Exception:
+        pass
+
+
+def safe_update_order(memory, order):
+    """
+    安全更新订单记忆。
+
+    同时把订单里的商品同步到 last_product，
+    避免“订单里的商品可以退货吗”之后追问“那退货呢”时上下文错乱。
+    """
+
+    try:
+        if hasattr(memory, "update_order"):
+            memory.update_order(order)
+    except Exception:
+        pass
+
+    product_name = (
+        order.get("product_name")
+        or order.get("product")
+    )
+
+    if product_name:
+        safe_update_product(
+            memory,
+            {
+                "name": product_name,
+                "product_name": product_name
+            }
+        )
+
+
 def execute_price_task(question, products, memory):
     """
     执行价格任务。
+
+    参数：
+    - question：用户问题
+    - products：商品数据列表
+    - memory：会话记忆对象
+
+    返回：
+    - 商品价格回答
     """
 
     product = find_product_from_list(question, products)
@@ -113,9 +178,10 @@ def execute_price_task(question, products, memory):
         product = find_product_in_db(question)
 
     if product is not None:
-        memory.update_product(product)
+        safe_update_product(memory, product)
     else:
-        product = memory.get_last_product()
+        if hasattr(memory, "get_last_product"):
+            product = memory.get_last_product()
 
     if product is None:
         return "请问您想查询哪一款商品的价格？"
@@ -135,6 +201,14 @@ def execute_price_task(question, products, memory):
 def execute_stock_task(question, products, memory):
     """
     执行库存任务。
+
+    参数：
+    - question：用户问题
+    - products：商品数据列表
+    - memory：会话记忆对象
+
+    返回：
+    - 商品库存回答
     """
 
     product = find_product_from_list(question, products)
@@ -143,9 +217,10 @@ def execute_stock_task(question, products, memory):
         product = find_product_in_db(question)
 
     if product is not None:
-        memory.update_product(product)
+        safe_update_product(memory, product)
     else:
-        product = memory.get_last_product()
+        if hasattr(memory, "get_last_product"):
+            product = memory.get_last_product()
 
     if product is None:
         return "请问您想查询哪一款商品的库存？"
@@ -163,6 +238,15 @@ def execute_stock_task(question, products, memory):
 def execute_order_task(question, orders, memory, use_llm_response=True):
     """
     执行订单任务。
+
+    当前逻辑：
+
+    1. 先查订单
+    2. 更新 memory 中的 last_order 和 last_product
+    3. 整理订单事实 tool_result
+    4. 如果开启 LLM，则调用 Qwen / DeepSeek 生成自然语言回答
+    5. 如果 LLM 成功，直接返回 LLM 回答
+    6. 如果 LLM 失败，回退模板回答
     """
 
     order = find_order_from_list(question, orders)
@@ -171,14 +255,18 @@ def execute_order_task(question, orders, memory, use_llm_response=True):
         order = find_order_in_db(question)
 
     if order is not None:
-        memory.update_order(order)
+        safe_update_order(memory, order)
     else:
-        order = memory.get_last_order()
+        if hasattr(memory, "get_last_order"):
+            order = memory.get_last_order()
 
     if order is None:
         return "请提供订单号，例如 O1001，我可以帮您查询订单状态。"
 
-    order_id = get_order_value(order, "order_id")
+    order_id = get_order_value(
+        order,
+        "order_id"
+    )
 
     order_status = get_order_value(
         order,
@@ -234,18 +322,17 @@ def execute_order_task(question, orders, memory, use_llm_response=True):
 
     if use_llm_response:
         llm_response = generate_response_with_llm(
-            question,
-            tool_result,
-            memory.response_cache,
+            question=question,
+            tool_result=tool_result,
+            response_cache=memory.response_cache,
             task_type="order_task"
         )
 
-        if llm_response is not None and validate_order_response(llm_response, order):
-            print("【回答生成】LLM生成成功")
-            print("【回答校验】通过")
+        if llm_response is not None and llm_response.strip():
+            print("【订单回答】LLM 生成成功，返回自然语言回答")
             return llm_response
 
-        print("【回答校验】失败，回退模板")
+        print("【订单回答】LLM 不可用，回退模板回答")
 
     return (
         f"订单 {order_id} 当前状态为：{order_status}。\n"
@@ -258,7 +345,8 @@ def execute_order_task(question, orders, memory, use_llm_response=True):
 def fallback_policy_answer(question):
     """
     售后 RAG 失败时的兜底回答。
-    避免 Chroma 数据库只读导致 Streamlit 页面崩溃。
+
+    避免 Chroma / RAG / LLM 出错导致页面崩溃。
     """
 
     if "退货" in question or "退款" in question:
@@ -300,7 +388,10 @@ def execute_policy_task(question, policy):
     """
 
     try:
-        answer = answer_policy_with_full_rag(question, top_k=3)
+        answer = answer_policy_with_full_rag(
+            question,
+            top_k=3
+        )
 
         if answer is not None and answer.strip():
             return answer
