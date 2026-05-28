@@ -3,12 +3,14 @@
 # 作用：
 # LLM 回答生成模块
 #
-# 当前版本支持 DeepSeek API。
+# 当前版本支持两种可选 API：
+# 1. DashScope / Qwen
+# 2. DeepSeek
 #
-# 设计原则：
-# 1. 有 API Key：调用 DeepSeek 生成自然语言回答
-# 2. 没有 API Key：返回 None，让 executors.py 自动回退模板
-# 3. API 报错：返回 None，不影响主流程
+# 优先级：
+# - 如果配置 DASHSCOPE_API_KEY，优先使用 Qwen
+# - 如果配置 DEEPSEEK_API_KEY，使用 DeepSeek
+# - 如果都没有，返回 None，让 executors.py 回退模板
 # =====================================
 
 import os
@@ -21,19 +23,10 @@ except Exception:
     OpenAI = None
 
 
-# 读取 .env 文件
 load_dotenv()
 
 
 def get_cache_value(cache, key):
-    """
-    从缓存中读取数据。
-
-    兼容两种写法：
-    1. 普通 dict：cache.get(key)
-    2. 自定义缓存对象：cache.get(key)
-    """
-
     if cache is None:
         return None
 
@@ -44,14 +37,6 @@ def get_cache_value(cache, key):
 
 
 def set_cache_value(cache, key, value):
-    """
-    向缓存中写入数据。
-
-    兼容两种写法：
-    1. 普通 dict：cache[key] = value
-    2. 自定义缓存对象：cache.set(key, value)
-    """
-
     if cache is None:
         return
 
@@ -65,49 +50,44 @@ def set_cache_value(cache, key, value):
 
 
 def build_cache_key(question, tool_result, task_type):
-    """
-    构造缓存 key。
-
-    同一个问题 + 同一个工具结果 + 同一个任务类型，
-    生成相同 key，避免重复调用 API。
-    """
-
     raw = f"{task_type}|{question}|{tool_result}"
-
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
-def get_deepseek_client():
+def get_llm_client():
     """
-    创建 DeepSeek 客户端。
+    创建 LLM 客户端。
 
-    DeepSeek API 兼容 OpenAI SDK，
-    只需要改 base_url。
+    优先使用 DashScope / Qwen。
+    如果没有 DashScope Key，再尝试 DeepSeek。
     """
-
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-
-    if not api_key:
-        print("【回答生成】未配置 DEEPSEEK_API_KEY，跳过 LLM 生成")
-        return None
 
     if OpenAI is None:
         print("【回答生成】openai 包未安装，跳过 LLM 生成")
-        return None
+        return None, None
 
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.deepseek.com"
-    )
+    dashscope_key = os.getenv("DASHSCOPE_API_KEY")
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
 
-    return client
+    if dashscope_key:
+        client = OpenAI(
+            api_key=dashscope_key,
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
+        )
+        return client, "qwen-plus"
+
+    if deepseek_key:
+        client = OpenAI(
+            api_key=deepseek_key,
+            base_url="https://api.deepseek.com"
+        )
+        return client, "deepseek-chat"
+
+    print("【回答生成】未配置 DASHSCOPE_API_KEY 或 DEEPSEEK_API_KEY，跳过 LLM 生成")
+    return None, None
 
 
 def build_system_prompt(task_type):
-    """
-    根据任务类型构造 system prompt。
-    """
-
     if task_type == "order_task":
         return (
             "你是一个电商客服助手。"
@@ -133,10 +113,6 @@ def build_system_prompt(task_type):
 
 
 def build_user_prompt(question, tool_result):
-    """
-    构造用户 prompt。
-    """
-
     return f"""
 用户问题：
 {question}
@@ -155,17 +131,11 @@ def generate_response_with_llm(
     task_type="general_task"
 ):
     """
-    使用 DeepSeek API 生成自然语言回答。
-
-    参数：
-    - question：用户原始问题
-    - tool_result：工具返回的事实信息
-    - response_cache：回答缓存，可传 dict 或自定义缓存对象
-    - task_type：任务类型，例如 order_task / policy_task
+    使用 Qwen / DeepSeek 生成自然语言回答。
 
     返回：
-    - str：LLM 生成的回答
-    - None：没有 API Key、API 报错、结果为空时返回 None
+    - str：LLM 生成回答
+    - None：无 Key、API 报错、结果为空时返回 None
     """
 
     cache_key = build_cache_key(
@@ -183,9 +153,9 @@ def generate_response_with_llm(
         print("【回答生成】命中 LLM 缓存")
         return cached_answer
 
-    client = get_deepseek_client()
+    client, model = get_llm_client()
 
-    if client is None:
+    if client is None or model is None:
         return None
 
     system_prompt = build_system_prompt(task_type)
@@ -197,7 +167,7 @@ def generate_response_with_llm(
 
     try:
         response = client.chat.completions.create(
-            model="deepseek-chat",
+            model=model,
             messages=[
                 {
                     "role": "system",
@@ -229,7 +199,7 @@ def generate_response_with_llm(
             answer
         )
 
-        print("【回答生成】DeepSeek 生成成功")
+        print(f"【回答生成】{model} 生成成功")
 
         return answer
 
