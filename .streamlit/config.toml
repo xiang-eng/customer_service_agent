@@ -1,0 +1,16 @@
+﻿[server]
+port = 8501
+address = "localhost"
+headless = true
+fileWatcherType = "none"
+
+[browser]
+serverAddress = "localhost"
+gatherUsageStats = false
+
+[theme]
+primaryColor = "#4F46E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F4F6"
+textColor = "#111827"
+font = "sans serif"
