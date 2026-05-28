@@ -214,6 +214,64 @@ def main():
     st.title("🤖 Multi-Agent + Agentic RAG 电商智能客服")
     st.caption("支持商品价格、库存、订单物流、售后政策、多轮追问和多跳任务规划")
 
+    st.markdown("### 🚀 系统能力")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.info("商品价格 / 库存查询")
+
+    with col2:
+        st.info("订单物流查询")
+
+    with col3:
+        st.info("售后政策 RAG")
+
+    col4, col5, col6 = st.columns(3)
+
+    with col4:
+        st.success("多跳任务规划")
+
+    with col5:
+        st.success("Reflection 自动反思")
+
+    with col6:
+        st.success("Memory 上下文追问")
+
+    st.divider()
+
+    st.markdown("### 🧾 当前会话记忆")
+
+    memory = st.session_state.memory
+
+    last_product = memory.get_last_product()
+    last_order = memory.get_last_order()
+    last_intents = memory.get_last_intents()
+
+    m1, m2, m3 = st.columns(3)
+
+    with m1:
+        if last_product:
+            product_name = last_product.get("product_name") or last_product.get("name") or "未知商品"
+            st.metric("最近商品", product_name)
+        else:
+            st.metric("最近商品", "暂无")
+
+    with m2:
+        if last_order:
+            st.metric("最近订单", last_order.get("order_id", "未知订单"))
+        else:
+            st.metric("最近订单", "暂无")
+
+    with m3:
+        if last_intents:
+            st.metric("最近意图", ", ".join(last_intents))
+        else:
+            st.metric("最近意图", "暂无")
+
+    st.divider()
+
+
     with st.sidebar:
         st.header("📌 项目信息")
 
