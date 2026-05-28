@@ -2,6 +2,7 @@
 openai
 python-dotenv
 requests
+protobuf==3.20.3
 chromadb
 sentence-transformers
 rank-bm25

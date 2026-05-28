@@ -21,7 +21,6 @@ from db_tools import find_order_in_db, find_product_in_db
 
 from llm_response import generate_response_with_llm
 
-from full_rag_policy import answer_policy_with_full_rag
 
 
 def format_number(value):
@@ -388,6 +387,8 @@ def execute_policy_task(question, policy):
     """
 
     try:
+        from full_rag_policy import answer_policy_with_full_rag
+
         answer = answer_policy_with_full_rag(
             question,
             top_k=3
