@@ -1,108 +1,237 @@
+﻿# =====================================
+# llm_response.py
+# 作用：
+# LLM 回答生成模块
+#
+# 当前版本支持 DeepSeek API。
+#
+# 设计原则：
+# 1. 有 API Key：调用 DeepSeek 生成自然语言回答
+# 2. 没有 API Key：返回 None，让 executors.py 自动回退模板
+# 3. API 报错：返回 None，不影响主流程
+# =====================================
+
 import os
-from openai import OpenAI
+import hashlib
 from dotenv import load_dotenv
 
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+
+
+# 读取 .env 文件
 load_dotenv()
 
 
-def get_client():
-    api_key = os.getenv("DASHSCOPE_API_KEY")
+def get_cache_value(cache, key):
+    """
+    从缓存中读取数据。
+
+    兼容两种写法：
+    1. 普通 dict：cache.get(key)
+    2. 自定义缓存对象：cache.get(key)
+    """
+
+    if cache is None:
+        return None
+
+    try:
+        return cache.get(key)
+    except Exception:
+        return None
+
+
+def set_cache_value(cache, key, value):
+    """
+    向缓存中写入数据。
+
+    兼容两种写法：
+    1. 普通 dict：cache[key] = value
+    2. 自定义缓存对象：cache.set(key, value)
+    """
+
+    if cache is None:
+        return
+
+    try:
+        if hasattr(cache, "set"):
+            cache.set(key, value)
+        elif isinstance(cache, dict):
+            cache[key] = value
+    except Exception:
+        return
+
+
+def build_cache_key(question, tool_result, task_type):
+    """
+    构造缓存 key。
+
+    同一个问题 + 同一个工具结果 + 同一个任务类型，
+    生成相同 key，避免重复调用 API。
+    """
+
+    raw = f"{task_type}|{question}|{tool_result}"
+
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def get_deepseek_client():
+    """
+    创建 DeepSeek 客户端。
+
+    DeepSeek API 兼容 OpenAI SDK，
+    只需要改 base_url。
+    """
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+
     if not api_key:
-        raise ValueError("未找到 DASHSCOPE_API_KEY，请检查 .env 文件")
+        print("【回答生成】未配置 DEEPSEEK_API_KEY，跳过 LLM 生成")
+        return None
+
+    if OpenAI is None:
+        print("【回答生成】openai 包未安装，跳过 LLM 生成")
+        return None
 
     client = OpenAI(
         api_key=api_key,
-        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-        timeout=5.0,
+        base_url="https://api.deepseek.com"
     )
+
     return client
 
 
-def build_response_prompt(question, tool_result, task_type):
+def build_system_prompt(task_type):
     """
-    构造回答生成提示词
-    question: 用户问题
-    tool_result: 工具查询结果（字符串）
-    task_type: 当前任务类型，例如 order_task
+    根据任务类型构造 system prompt。
     """
 
-    task_instruction_map = {
-        "order_task": "你只能回答订单、物流、发货、签收相关信息，不要回答价格、库存、售后政策。",
-        "price_task": "你只能回答价格相关信息，不要回答订单、库存、售后政策。",
-        "stock_task": "你只能回答库存相关信息，不要回答价格、订单、售后政策。",
-        "policy_task": "你只能回答售后、退货、换货、保修相关信息，不要回答价格、库存、订单。"
-    }
+    if task_type == "order_task":
+        return (
+            "你是一个电商客服助手。"
+            "你需要严格根据工具返回的订单事实回答用户。"
+            "不要编造订单状态、物流公司、物流单号、金额。"
+            "如果工具结果中没有的信息，不要自己补充。"
+            "回答要自然、简洁、礼貌。"
+        )
 
-    task_instruction = task_instruction_map.get(
-        task_type,
-        "你只能回答当前任务对应的信息，不要扩展。"
+    if task_type == "policy_task":
+        return (
+            "你是一个电商售后客服助手。"
+            "你需要严格根据给定的售后政策内容回答用户。"
+            "不要编造政策。"
+            "回答要清晰、简洁、适合客服场景。"
+        )
+
+    return (
+        "你是一个电商智能客服助手。"
+        "请严格根据工具结果回答用户问题。"
+        "不要编造事实。"
     )
 
+
+def build_user_prompt(question, tool_result):
+    """
+    构造用户 prompt。
+    """
+
     return f"""
-你是一个电商客服助手。
-请根据用户问题和系统查到的结果，生成自然、简洁、准确的中文回答。
-
-严格要求：
-1. 只能基于“系统查到的结果”回答
-2. 不要编造任何未提供的信息
-3. {task_instruction}
-4. 严禁回答非本任务内容，也不要解释其他任务
-5. 如果当前任务无关，不要解释，直接忽略
-6. 不要输出 JSON
-
 用户问题：
 {question}
 
-当前任务类型：
-{task_type}
-
-系统查到的结果：
+工具返回的事实信息：
 {tool_result}
 
-请直接输出最终回复：
-""".strip()
+请根据以上事实信息，生成一段自然、准确、简洁的客服回答。
+"""
 
 
-def generate_response_with_llm(question, tool_result, cache=None, task_type="order_task"):
+def generate_response_with_llm(
+    question,
+    tool_result,
+    response_cache=None,
+    task_type="general_task"
+):
     """
-    用 LLM 把工具结果整理成更自然的客服回答
+    使用 DeepSeek API 生成自然语言回答。
 
     参数：
-    - question: 用户问题
-    - tool_result: 工具查询结果
-    - cache: 缓存对象（SimpleCache）
-    - task_type: 当前任务类型
+    - question：用户原始问题
+    - tool_result：工具返回的事实信息
+    - response_cache：回答缓存，可传 dict 或自定义缓存对象
+    - task_type：任务类型，例如 order_task / policy_task
+
+    返回：
+    - str：LLM 生成的回答
+    - None：没有 API Key、API 报错、结果为空时返回 None
     """
 
-    # 用 question + tool_result + task_type 组成缓存 key
-    cache_key = f"{task_type}||{question}||{tool_result}"
+    cache_key = build_cache_key(
+        question,
+        tool_result,
+        task_type
+    )
 
-    # 如果传入了缓存对象，就先查缓存
-    if cache is not None:
-        cached_response = cache.get(cache_key)
-        if cached_response is not None:
-            print("【缓存命中】直接返回缓存回答")
-            return cached_response
+    cached_answer = get_cache_value(
+        response_cache,
+        cache_key
+    )
 
-    client = get_client()
+    if cached_answer:
+        print("【回答生成】命中 LLM 缓存")
+        return cached_answer
+
+    client = get_deepseek_client()
+
+    if client is None:
+        return None
+
+    system_prompt = build_system_prompt(task_type)
+
+    user_prompt = build_user_prompt(
+        question,
+        tool_result
+    )
 
     try:
-        completion = client.chat.completions.create(
-            model="qwen-plus",
+        response = client.chat.completions.create(
+            model="deepseek-chat",
             messages=[
-                {"role": "system", "content": "你是一个严格受约束的电商客服助手，只能基于给定结果回答。"},
-                {"role": "user", "content": build_response_prompt(question, tool_result, task_type)},
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
             ],
-            temperature=0.2,
+            temperature=0.3,
+            max_tokens=500,
+            timeout=20
         )
 
-        content = completion.choices[0].message.content.strip()
+        answer = response.choices[0].message.content
 
-        # 如果有缓存对象，就把新结果写入缓存
-        if cache is not None:
-            cache.set(cache_key, content)
+        if answer is None:
+            return None
 
-        return content
+        answer = answer.strip()
+
+        if not answer:
+            return None
+
+        set_cache_value(
+            response_cache,
+            cache_key,
+            answer
+        )
+
+        print("【回答生成】DeepSeek 生成成功")
+
+        return answer
 
     except Exception as e:
         print(f"【回答生成失败】{e}")
