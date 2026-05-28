@@ -305,3 +305,49 @@ Plan -> Retrieve -> Reflect -> Re-plan
 这是一个具备任务规划、工具调用、证据反思、自动重规划和上下文记忆能力的 Multi-Agent Agentic RAG 电商智能客服系统。
 
 
+
+---
+
+## 12. LLM API 可选增强
+
+本项目已支持可选的大模型 API 增强能力。
+
+当前支持：
+
+- DashScope / Qwen
+- DeepSeek
+
+系统逻辑：
+
+有 DASHSCOPE_API_KEY，使用 Qwen 生成自然语言客服回答。
+
+有 DEEPSEEK_API_KEY，使用 DeepSeek 生成自然语言客服回答。
+
+没有 API Key 或 API 调用失败，自动回退模板回答。
+
+这样设计的好处：
+
+- 本地没有 API Key 也能正常运行
+- GitHub 用户 clone 后也能直接体验基础功能
+- 面试演示时可以展示真实 LLM 自然语言生成能力
+- API 失败不会导致系统崩溃
+
+API 配置方式：
+
+复制 .env.example 为 .env。
+
+然后在 .env 中填写自己的 Key：
+
+DASHSCOPE_API_KEY=your_real_api_key
+
+注意：
+
+不要把 .env 上传到 GitHub。
+不要在 README 中暴露真实 API Key。
+
+LLM 使用位置：
+
+1. 订单查询结果的自然语言生成
+2. 售后政策回答的自然语言生成
+
+核心工具查询结果仍然来自数据库或 RAG 检索，LLM 只负责把事实信息组织成更自然的客服回复。
