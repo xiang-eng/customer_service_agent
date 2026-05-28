@@ -3,14 +3,16 @@
 # 作用：
 # LLM 回答生成模块
 #
-# 当前版本支持两种可选 API：
-# 1. DashScope / Qwen
-# 2. DeepSeek
+# 支持：
+# 1. 本地 .env
+# 2. Streamlit Cloud Secrets
+# 3. DashScope / Qwen
+# 4. DeepSeek
 #
-# 优先级：
-# - 如果配置 DASHSCOPE_API_KEY，优先使用 Qwen
-# - 如果配置 DEEPSEEK_API_KEY，使用 DeepSeek
-# - 如果都没有，返回 None，让 executors.py 回退模板
+# 设计原则：
+# - 有 DASHSCOPE_API_KEY：优先使用 Qwen
+# - 有 DEEPSEEK_API_KEY：使用 DeepSeek
+# - 都没有或调用失败：返回 None，让 executors.py 回退模板
 # =====================================
 
 import os
@@ -26,7 +28,56 @@ except Exception:
 load_dotenv()
 
 
+def read_secret(key):
+    """
+    读取 API Key。
+
+    优先级：
+    1. os.environ / .env
+    2. Streamlit Cloud 的 st.secrets
+    """
+
+    value = os.getenv(key)
+
+    if value:
+        return value
+
+    try:
+        import streamlit as st
+
+        if key in st.secrets:
+            return st.secrets[key]
+
+    except Exception:
+        pass
+
+    return None
+
+
+def clean_api_key(key):
+    """
+    清洗 API Key，避免复制时带空格或引号。
+    """
+
+    if not key:
+        return None
+
+    key = str(key).strip()
+    key = key.strip('"')
+    key = key.strip("'")
+    key = key.strip()
+
+    if not key:
+        return None
+
+    return key
+
+
 def get_cache_value(cache, key):
+    """
+    从缓存中读取回答。
+    """
+
     if cache is None:
         return None
 
@@ -37,6 +88,10 @@ def get_cache_value(cache, key):
 
 
 def set_cache_value(cache, key, value):
+    """
+    写入回答缓存。
+    """
+
     if cache is None:
         return
 
@@ -50,7 +105,12 @@ def set_cache_value(cache, key, value):
 
 
 def build_cache_key(question, tool_result, task_type):
+    """
+    构造缓存 key。
+    """
+
     raw = f"{task_type}|{question}|{tool_result}"
+
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
 
@@ -66,28 +126,40 @@ def get_llm_client():
         print("【回答生成】openai 包未安装，跳过 LLM 生成")
         return None, None
 
-    dashscope_key = os.getenv("DASHSCOPE_API_KEY")
-    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    dashscope_key = clean_api_key(
+        read_secret("DASHSCOPE_API_KEY")
+    )
 
-    if dashscope_key:
+    deepseek_key = clean_api_key(
+        read_secret("DEEPSEEK_API_KEY")
+    )
+
+    if dashscope_key and dashscope_key != "your_dashscope_api_key_here":
         client = OpenAI(
             api_key=dashscope_key,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
+
         return client, "qwen-plus"
 
-    if deepseek_key:
+    if deepseek_key and deepseek_key != "your_deepseek_api_key_here":
         client = OpenAI(
             api_key=deepseek_key,
             base_url="https://api.deepseek.com"
         )
+
         return client, "deepseek-chat"
 
     print("【回答生成】未配置 DASHSCOPE_API_KEY 或 DEEPSEEK_API_KEY，跳过 LLM 生成")
+
     return None, None
 
 
 def build_system_prompt(task_type):
+    """
+    根据任务类型构造 system prompt。
+    """
+
     if task_type == "order_task":
         return (
             "你是一个电商客服助手。"
@@ -113,6 +185,10 @@ def build_system_prompt(task_type):
 
 
 def build_user_prompt(question, tool_result):
+    """
+    构造用户 prompt。
+    """
+
     return f"""
 用户问题：
 {question}
